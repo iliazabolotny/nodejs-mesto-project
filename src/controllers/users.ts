@@ -10,6 +10,7 @@ const NOT_FOUND_ERROR_CODE = 404;
 const createUser = (req: Request, res: Response, next: NextFunction) => {
   const { name, about, avatar } = req.body;
   user.create({ name, about, avatar })
+    .then((createdUser) => res.status(201).send(createdUser))
     .catch(() => {
       const error: UserError = new Error('Переданы некорректные данные');
       error.statusCode = DATA_ERROR_CODE;
@@ -48,6 +49,7 @@ const updateProfile = (req: Request, res: Response, next: NextFunction) => {
       if (!targetUser) {
         throw new Error('Запрашиваемый пользователь не найден');
       }
+      res.send(targetUser);
     })
     .catch((e) => {
       if (e.message === 'Запрашиваемый пользователь не найден') {
@@ -72,6 +74,7 @@ const updateAvatar = (req: Request, res: Response, next: NextFunction) => {
       if (!targetUser) {
         throw new Error('Запрашиваемый пользователь не найден');
       }
+      res.send(targetUser);
     })
     .catch((e) => {
       if (e.message === 'Запрашиваемый пользователь не найден') {

@@ -10,7 +10,7 @@ const NOT_FOUND_ERROR_CODE = 404;
 const createCard = (req: Request, res: Response, next: NextFunction) => {
   const { name, link, owner } = req.body;
   card.create({ name, link, owner })
-    .then((createdCard) => res.send(createdCard))
+    .then((createdCard) => res.status(201).send(createdCard))
     .catch(() => {
       const error: CardsError = new Error('Переданы некорректные данные');
       error.statusCode = DATA_ERROR_CODE;
@@ -31,6 +31,7 @@ const deleteCard = (req: Request, res: Response, next: NextFunction) => card.fin
     if (!targetCard) {
       throw new Error('Запрашиваемая карточка не найдена');
     }
+    res.send(targetCard);
   })
   .catch((e) => {
     e.statusCode = NOT_FOUND_ERROR_CODE;
@@ -46,6 +47,7 @@ const likeCard = (req: Request, res: Response, next: NextFunction) => card.findB
     if (!targetCard) {
       throw new Error('Запрашиваемая карточка не найдена');
     }
+    res.send(targetCard);
   })
   .catch((e) => {
     if (e.message === 'Запрашиваемая карточка не найдена') {
@@ -58,26 +60,26 @@ const likeCard = (req: Request, res: Response, next: NextFunction) => card.findB
     }
   });
 
-const dislikeCard = (req: Request, res: Response, next: NextFunction) => card.findByIdAndUpdate(
-  req.params.cardId,
-  { $pull: { likes: req?.user } },
-  { new: true },
-)
-  .then((targetCard) => {
-    if (!targetCard) {
-      throw new Error('Запрашиваемая карточка не найдена');
-    }
-  })
-  .catch((e) => {
-    if (e.message === 'Запрашиваемая карточка не найдена') {
-      e.statusCode = NOT_FOUND_ERROR_CODE;
-      next(e);
-    } else {
-      e.statusCode = DATA_ERROR_CODE;
-      e.message = 'Переданы некорректные данные';
-      next(e);
-    }
-  });
+const dislikeCard = (req: Request, res: Response, next: NextFunction) => {
+  // @ts-ignore
+  card.findByIdAndUpdate(req.params.cardId, { $pull: { likes: req?.user?._id } }, { new: true })
+    .then((targetCard) => {
+      if (!targetCard) {
+        throw new Error('Запрашиваемая карточка не найдена');
+      }
+      res.send(targetCard);
+    })
+    .catch((e) => {
+      if (e.message === 'Запрашиваемая карточка не найдена') {
+        e.statusCode = NOT_FOUND_ERROR_CODE;
+        next(e);
+      } else {
+        e.statusCode = DATA_ERROR_CODE;
+        e.message = 'Переданы некорректные данные';
+        next(e);
+      }
+    });
+};
 
 export {
   deleteCard, createCard, getCards, likeCard, dislikeCard,
