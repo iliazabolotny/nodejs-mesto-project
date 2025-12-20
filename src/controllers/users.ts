@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import user from '../models/user';
 
 export interface UserError extends Error {
@@ -8,8 +9,17 @@ const DATA_ERROR_CODE = 400;
 const NOT_FOUND_ERROR_CODE = 404;
 
 const createUser = (req: Request, res: Response, next: NextFunction) => {
-  const { name, about, avatar } = req.body;
-  user.create({ name, about, avatar })
+  const {
+    name, about, avatar, email, password,
+  } = req.body;
+  return bcrypt.hash(password, 10)
+    .then((hash) => user.create({
+      email,
+      password: hash,
+      name,
+      about,
+      avatar,
+    }))
     .then((createdUser) => res.status(201).send(createdUser))
     .catch(() => {
       const error: UserError = new Error('Переданы некорректные данные');
