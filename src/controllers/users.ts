@@ -1,12 +1,17 @@
 import { NextFunction, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import user from '../models/user';
 
 export interface UserError extends Error {
   statusCode?: number;
 }
+interface SessionRequest extends Request {
+  user?: string;
+}
 const DATA_ERROR_CODE = 400;
 const NOT_FOUND_ERROR_CODE = 404;
+const UNAUTHORIZED_ERROR_CODE = 401;
 
 const createUser = (req: Request, res: Response, next: NextFunction) => {
   const {
@@ -28,6 +33,33 @@ const createUser = (req: Request, res: Response, next: NextFunction) => {
     });
 };
 
+const login = (req: Request, res: Response, next: NextFunction) => {
+  const { email, password } = req.body;
+
+  return user.findOne({ email }).select('+password')
+    .then((targetUser) => {
+      if (!targetUser) {
+        throw new Error('Неправильные почта или пароль');
+      }
+
+      return bcrypt.compare(password, targetUser.password).then((matched) => {
+        if (!matched) {
+          throw new Error('Неправильные почта или пароль');
+        }
+        return targetUser;
+      });
+    })
+    .then((loggedUser) => {
+      res.send({
+        token: jwt.sign({ _id: loggedUser._id }, 'mesto-project', { expiresIn: '7d' }),
+      });
+    })
+    .catch((e) => {
+      e.statusCode = UNAUTHORIZED_ERROR_CODE;
+      next(e);
+    });
+};
+
 const getUsers = (req: Request, res: Response, next: NextFunction) => user.find({})
   .then((users) => res.send(users))
   .catch(() => {
@@ -36,7 +68,7 @@ const getUsers = (req: Request, res: Response, next: NextFunction) => user.find(
     next(error);
   });
 
-const getUser = (req: Request, res: Response, next: NextFunction) => user.findOne({ _id: req?.params.userId.match(/^[0-9a-fA-F]{24}$/) })
+const getUser = (req: Request, res: Response, next: NextFunction) => user.findOne({ _id: req?.params.userId })
   .then((currentUser) => {
     if (!currentUser) {
       throw new Error('Запрашиваемый пользователь не найден');
@@ -48,9 +80,9 @@ const getUser = (req: Request, res: Response, next: NextFunction) => user.findOn
     next(e);
   });
 
-const updateProfile = (req: Request, res: Response, next: NextFunction) => {
+const updateProfile = (req: SessionRequest, res: Response, next: NextFunction) => {
   const { name, about } = req.body;
-  user.findByIdAndUpdate(req?.user?._id.match(/^[0-9a-fA-F]{24}$/), { name, about }, {
+  user.findByIdAndUpdate(req?.user, { name, about }, {
     new: true,
     runValidators: true,
     upsert: false,
@@ -73,9 +105,20 @@ const updateProfile = (req: Request, res: Response, next: NextFunction) => {
     });
 };
 
-const updateAvatar = (req: Request, res: Response, next: NextFunction) => {
+const getProfile = (req: SessionRequest, res: Response, next: NextFunction) => {
+  user.findOne({ _id: req?.user })
+    .then((currentUser) => {
+      res.send(currentUser);
+    })
+    .catch((e) => {
+      e.statusCode = NOT_FOUND_ERROR_CODE;
+      next(e);
+    });
+};
+
+const updateAvatar = (req: SessionRequest, res: Response, next: NextFunction) => {
   const { avatar } = req.body;
-  user.findByIdAndUpdate(req?.user?._id.match(/^[0-9a-fA-F]{24}$/), { avatar }, {
+  user.findByIdAndUpdate(req?.user, { avatar }, {
     new: true,
     runValidators: true,
     upsert: false,
@@ -99,5 +142,5 @@ const updateAvatar = (req: Request, res: Response, next: NextFunction) => {
 };
 
 export {
-  getUser, createUser, getUsers, updateProfile, updateAvatar,
+  getUser, createUser, getUsers, updateProfile, updateAvatar, login, getProfile,
 };

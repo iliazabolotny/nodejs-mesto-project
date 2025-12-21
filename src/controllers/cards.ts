@@ -1,12 +1,18 @@
 import { NextFunction, Request, Response } from 'express';
+import { JwtPayload } from 'jsonwebtoken';
 import card from '../models/card';
 
 export interface CardsError extends Error {
   statusCode?: number;
 }
 
+interface SessionRequest extends Request {
+  user: string | JwtPayload;
+}
+
 const DATA_ERROR_CODE = 400;
 const NOT_FOUND_ERROR_CODE = 404;
+const FORBIDDEN_ERROR_CODE = 403;
 const createCard = (req: Request, res: Response, next: NextFunction) => {
   const { name, link, owner } = req.body;
   card.create({ name, link, owner })
@@ -26,21 +32,34 @@ const getCards = (req: Request, res: Response, next: NextFunction) => card.find(
     next(error);
   });
 
-const deleteCard = (req: Request, res: Response, next: NextFunction) => card.findByIdAndDelete(req.params.cardId.match(/^[0-9a-fA-F]{24}$/))
-  .then((targetCard) => {
-    if (!targetCard) {
-      throw new Error('Запрашиваемая карточка не найдена');
-    }
-    res.send(targetCard);
-  })
-  .catch((e) => {
-    e.statusCode = NOT_FOUND_ERROR_CODE;
-    next(e);
-  });
+const deleteCard = (req: SessionRequest, res: Response, next: NextFunction) => {
+  card.findById(req.params.cardId)
+    .then((targetCard) => {
+      if (!targetCard) {
+        throw new Error('Запрашиваемая карточка не найдена');
+      }
+      if (targetCard.owner === req?.user) {
+        card.remove(targetCard)
+          .then((ownerCard) => res.send(ownerCard));
+      } else {
+        throw new Error('Попытка удалить чужую карточку');
+      }
+      res.send(targetCard);
+    })
+    .catch((e) => {
+      if (e.message === 'Запрашиваемая карточка не найдена') {
+        e.statusCode = NOT_FOUND_ERROR_CODE;
+        next(e);
+      } else {
+        e.statusCode = FORBIDDEN_ERROR_CODE;
+        next(e);
+      }
+    });
+};
 
-const likeCard = (req: Request, res: Response, next: NextFunction) => card.findByIdAndUpdate(
+const likeCard = (req: SessionRequest, res: Response, next: NextFunction) => card.findByIdAndUpdate(
   req.params.cardId,
-  { $addToSet: { likes: req?.user?._id } },
+  { $addToSet: { likes: req?.user } },
   { new: true },
 )
   .then((targetCard) => {
@@ -62,7 +81,7 @@ const likeCard = (req: Request, res: Response, next: NextFunction) => card.findB
 
 const dislikeCard = (req: Request, res: Response, next: NextFunction) => {
   // @ts-ignore
-  card.findByIdAndUpdate(req.params.cardId, { $pull: { likes: req?.user?._id } }, { new: true })
+  card.findByIdAndUpdate(req.params.cardId, { $pull: { likes: req?.user } }, { new: true })
     .then((targetCard) => {
       if (!targetCard) {
         throw new Error('Запрашиваемая карточка не найдена');
