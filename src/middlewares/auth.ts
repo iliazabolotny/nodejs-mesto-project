@@ -5,10 +5,6 @@ interface SessionRequest extends Request {
   user: string | JwtPayload;
 }
 
-export interface AuthError extends Error {
-  statusCode: number;
-}
-
 const UNAUTHORIZED_ERROR_CODE = 401;
 
 const extractBearerToken = (header: string) => header.replace('Bearer ', '');
