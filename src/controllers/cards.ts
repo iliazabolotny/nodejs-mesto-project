@@ -17,19 +17,24 @@ const createCard = (req: Request, res: Response, next: NextFunction) => {
   const { name, link, owner } = req.body;
   card.create({ name, link, owner })
     .then((createdCard) => res.status(201).send(createdCard))
-    .catch(() => {
-      const error: CardsError = new Error('Переданы некорректные данные');
-      error.statusCode = DATA_ERROR_CODE;
-      next(error);
+    .catch((err) => {
+      if (err.name === 'ValidationError') {
+        const error: CardsError = new Error('Переданы некорректные данные');
+        error.statusCode = DATA_ERROR_CODE;
+        next(error);
+      }
+      next(err);
     });
 };
 
 const getCards = (req: Request, res: Response, next: NextFunction) => card.find({})
   .then((cards) => res.send(cards))
-  .catch(() => {
-    const error: CardsError = new Error('Переданы некорректные данные');
-    error.statusCode = DATA_ERROR_CODE;
-    next(error);
+  .catch((err) => {
+    if (err.name === 'ValidationError') {
+      const error: CardsError = new Error('Переданы некорректные данные');
+      error.statusCode = DATA_ERROR_CODE;
+    }
+    next(err);
   });
 
 const deleteCard = (req: SessionRequest, res: Response, next: NextFunction) => {
@@ -38,7 +43,7 @@ const deleteCard = (req: SessionRequest, res: Response, next: NextFunction) => {
       if (!targetCard) {
         throw new Error('Запрашиваемая карточка не найдена');
       }
-      if (targetCard.owner === req?.user) {
+      if (targetCard.owner.toString() === req?.user) {
         card.remove(targetCard)
           .then((ownerCard) => res.send(ownerCard));
       } else {
@@ -50,10 +55,12 @@ const deleteCard = (req: SessionRequest, res: Response, next: NextFunction) => {
       if (e.message === 'Запрашиваемая карточка не найдена') {
         e.statusCode = NOT_FOUND_ERROR_CODE;
         next(e);
-      } else {
+      }
+      if (e.message === 'Попытка удалить чужую карточку') {
         e.statusCode = FORBIDDEN_ERROR_CODE;
         next(e);
       }
+      next(e);
     });
 };
 
@@ -72,11 +79,13 @@ const likeCard = (req: SessionRequest, res: Response, next: NextFunction) => car
     if (e.message === 'Запрашиваемая карточка не найдена') {
       e.statusCode = NOT_FOUND_ERROR_CODE;
       next(e);
-    } else {
+    }
+    if (e.name === 'ValidationError') {
       e.statusCode = DATA_ERROR_CODE;
       e.message = 'Переданы некорректные данные';
       next(e);
     }
+    next(e);
   });
 
 const dislikeCard = (req: Request, res: Response, next: NextFunction) => {
@@ -92,11 +101,13 @@ const dislikeCard = (req: Request, res: Response, next: NextFunction) => {
       if (e.message === 'Запрашиваемая карточка не найдена') {
         e.statusCode = NOT_FOUND_ERROR_CODE;
         next(e);
-      } else {
+      }
+      if (e.name === 'ValidationError') {
         e.statusCode = DATA_ERROR_CODE;
         e.message = 'Переданы некорректные данные';
         next(e);
       }
+      next(e);
     });
 };
 

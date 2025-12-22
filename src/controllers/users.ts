@@ -12,6 +12,7 @@ interface SessionRequest extends Request {
 const DATA_ERROR_CODE = 400;
 const NOT_FOUND_ERROR_CODE = 404;
 const UNAUTHORIZED_ERROR_CODE = 401;
+const REPEAT_ERROR_CODE = 409;
 
 const createUser = (req: Request, res: Response, next: NextFunction) => {
   const {
@@ -25,11 +26,24 @@ const createUser = (req: Request, res: Response, next: NextFunction) => {
       about,
       avatar,
     }))
-    .then((createdUser) => res.status(201).send(createdUser))
-    .catch(() => {
-      const error: UserError = new Error('Переданы некорректные данные');
-      error.statusCode = DATA_ERROR_CODE;
-      next(error);
+    .then((createdUser) => res.status(201).send({
+      name: createdUser.name,
+      about: createdUser.about,
+      avatar: createdUser.avatar,
+      email: createdUser.email,
+    }))
+    .catch((err) => {
+      if (err.name === 'ValidationError') {
+        const error: UserError = new Error('Переданы некорректные данные');
+        error.statusCode = DATA_ERROR_CODE;
+        next(error);
+      }
+      if (err.code === 11000) {
+        const error: UserError = new Error('Этот email уже существует в базе');
+        error.statusCode = REPEAT_ERROR_CODE;
+        next(error);
+      }
+      next(err);
     });
 };
 
@@ -51,7 +65,7 @@ const login = (req: Request, res: Response, next: NextFunction) => {
     })
     .then((loggedUser) => {
       res.send({
-        token: jwt.sign({ _id: loggedUser._id }, 'mesto-project', { expiresIn: '7d' }),
+        token: jwt.sign({ _id: loggedUser._id }, 'super-strong-secret', { expiresIn: '7d' }),
       });
     })
     .catch((e) => {
@@ -68,7 +82,7 @@ const getUsers = (req: Request, res: Response, next: NextFunction) => user.find(
     next(error);
   });
 
-const getUser = (req: Request, res: Response, next: NextFunction) => user.findOne({ _id: req?.params.userId })
+const getUser = (req: Request, res: Response, next: NextFunction) => user.findOne({ _id: req?.params.userId.match(/^[0-9a-fA-F]{24}$/) })
   .then((currentUser) => {
     if (!currentUser) {
       throw new Error('Запрашиваемый пользователь не найден');
@@ -76,7 +90,10 @@ const getUser = (req: Request, res: Response, next: NextFunction) => user.findOn
     res.send(currentUser);
   })
   .catch((e) => {
-    e.statusCode = NOT_FOUND_ERROR_CODE;
+    if (e.message === 'Запрашиваемый пользователь не найден') {
+      e.statusCode = NOT_FOUND_ERROR_CODE;
+      next(e);
+    }
     next(e);
   });
 
@@ -97,11 +114,12 @@ const updateProfile = (req: SessionRequest, res: Response, next: NextFunction) =
       if (e.message === 'Запрашиваемый пользователь не найден') {
         e.statusCode = NOT_FOUND_ERROR_CODE;
         next(e);
-      } else {
+      } else if (e.neme === 'ValidationError') {
         e.statusCode = DATA_ERROR_CODE;
         e.message = 'Переданы некорректные данные';
         next(e);
       }
+      next(e);
     });
 };
 
@@ -110,10 +128,7 @@ const getProfile = (req: SessionRequest, res: Response, next: NextFunction) => {
     .then((currentUser) => {
       res.send(currentUser);
     })
-    .catch((e) => {
-      e.statusCode = NOT_FOUND_ERROR_CODE;
-      next(e);
-    });
+    .catch(next);
 };
 
 const updateAvatar = (req: SessionRequest, res: Response, next: NextFunction) => {
@@ -133,11 +148,12 @@ const updateAvatar = (req: SessionRequest, res: Response, next: NextFunction) =>
       if (e.message === 'Запрашиваемый пользователь не найден') {
         e.statusCode = NOT_FOUND_ERROR_CODE;
         next(e);
-      } else {
+      } else if (e.neme === 'ValidationError') {
         e.statusCode = DATA_ERROR_CODE;
         e.message = 'Переданы некорректные данные';
         next(e);
       }
+      next(e);
     });
 };
 

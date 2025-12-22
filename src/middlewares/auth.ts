@@ -21,7 +21,7 @@ export default (req: SessionRequest, res: Response, next: NextFunction) => {
     let payload;
 
     try {
-      payload = jwt.verify(token, 'mesto-project');
+      payload = jwt.verify(token, 'super-strong-secret');
     } catch (err) {
       throw new Error('Необходима авторизация!');
     }

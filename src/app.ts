@@ -13,19 +13,6 @@ export interface CustomError extends Error {
 }
 
 const SERVER_ERROR_CODE = 500;
-const DATA_ERROR_CODE = 400;
-const DATA_COLLISION_ERROR_CODE = 409;
-const getErrorCode = (err: CustomError) => {
-  if (err.name === 'ValidationError' || err.name === 'CastError') {
-    return DATA_ERROR_CODE;
-  }
-
-  if (err.name === 'MongoError' && (err.code === 11000 || err.code === 11001)) {
-    return DATA_COLLISION_ERROR_CODE;
-  }
-
-  return SERVER_ERROR_CODE;
-};
 
 const { PORT = 3000 } = process.env;
 const app = express();
@@ -38,7 +25,7 @@ app.use(requestLogger);
 app.post('/signup', celebrate({
   body: Joi.object().keys({
     email: Joi.string().email().required(),
-    password: Joi.string().required().min(8),
+    password: Joi.string().required(),
     name: Joi.string().min(2).max(30),
     about: Joi.string().min(2).max(30),
     avatar: Joi.string(),
@@ -47,10 +34,7 @@ app.post('/signup', celebrate({
 app.post('/signin', celebrate({
   body: Joi.object().keys({
     email: Joi.string().email().required(),
-    password: Joi.string().required().min(8),
-    name: Joi.string().min(2).max(30),
-    about: Joi.string().min(2).max(30),
-    avatar: Joi.string(),
+    password: Joi.string().required(),
   }).unknown(true),
 }), login);
 // @ts-ignore
@@ -61,7 +45,7 @@ app.use('/cards', cardsRouter);
 app.use(errorLogger);
 app.use(errors());
 app.use((err: CustomError, req: Request, res: Response) => {
-  const { statusCode = getErrorCode(err), message } = err;
+  const { statusCode = SERVER_ERROR_CODE, message } = err;
   res.status(statusCode).send({ message: statusCode === SERVER_ERROR_CODE ? 'На сервере произошла ошибка' : message });
 });
 
