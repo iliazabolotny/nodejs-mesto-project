@@ -65,7 +65,7 @@ const login = (req: Request, res: Response, next: NextFunction) => {
     })
     .then((loggedUser) => {
       res.send({
-        token: jwt.sign({ _id: loggedUser._id }, 'super-strong-secret', { expiresIn: '7d' }),
+        token: jwt.sign({ _id: loggedUser._id }, 'my-secret', { expiresIn: '7d' }),
       });
     })
     .catch((e) => {
